@@ -1,2 +1,6 @@
 Year,Month,Type,Description,Amount
 2026,4,wage,30000,30000.0
+2026,5,wage,lön,35000.0
+2026,5,cost,mat,1000.0
+2026,5,cost,hyra,12000.0
+2026,5,debt,bil,4000.0

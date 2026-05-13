@@ -11,7 +11,7 @@ class BudgetManager:
         self.initialize_csv()
     
     def initialize_csv(self):
-        """Initialize CSV file if it doesn't exist."""
+        #Initialize CSV file if it doesn't exist.
         if not os.path.exists(self.csv_file):
             with open(self.csv_file, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
