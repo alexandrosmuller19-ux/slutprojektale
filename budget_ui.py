@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 class BudgetUI:
-    """Professional Budget Manager GUI with modern design."""
+    # Professionell Budget Manager GUI med modernt design.
 
     MONTH_NAMES = {
         1: "Januari", 2: "Februari", 3: "Mars", 4: "April", 5: "Maj", 6: "Juni",
@@ -60,7 +60,7 @@ class BudgetUI:
         self.refresh_data()
 
     # ──────────────────────────────────────────────
-    #  STYLES
+    #  STILAR
     # ──────────────────────────────────────────────
 
     def _setup_styles(self):
@@ -100,17 +100,17 @@ class BudgetUI:
               foreground=[('selected', self.COLORS['primary'])])
 
     # ──────────────────────────────────────────────
-    #  LAYOUT SKELETON
+    #  LAYOUT SKELETT
     # ──────────────────────────────────────────────
 
     def _build_layout(self):
-        # Top nav bar
+        # Överst navigationsfält
         self._build_navbar()
 
-        # Thin divider
+        # Tunn delare
         tk.Frame(self.root, bg=self.COLORS['border'], height=1).pack(fill=tk.X)
 
-        # Scrollable main body
+        # Scrollbar huvuddel
         body_outer = tk.Frame(self.root, bg=self.COLORS['bg'])
         body_outer.pack(fill=tk.BOTH, expand=True)
 
@@ -123,7 +123,7 @@ class BudgetUI:
         _vsb.pack(side=tk.RIGHT, fill=tk.Y)
         self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Inner frame that holds all cards / tables
+        # Inre ram som innehål alla kort / tabeller
         self._body = tk.Frame(self._canvas, bg=self.COLORS['bg'])
         self._canvas_window = self._canvas.create_window(
             (0, 0), window=self._body, anchor='nw'
@@ -154,7 +154,7 @@ class BudgetUI:
         inner = tk.Frame(nav, bg=self.COLORS['surface'])
         inner.pack(fill=tk.BOTH, expand=True, padx=36, pady=0)
 
-        # Logo / title
+        # Logotyp / titel
         logo_wrap = tk.Frame(inner, bg=self.COLORS['surface'])
         logo_wrap.pack(side=tk.LEFT, fill=tk.Y)
 
@@ -166,7 +166,7 @@ class BudgetUI:
                          bg=self.COLORS['surface'], fg=self.COLORS['text'])
         title.pack(side=tk.LEFT, pady=22)
 
-        # Buttons
+        # Knappar
         btn_wrap = tk.Frame(inner, bg=self.COLORS['surface'])
         btn_wrap.pack(side=tk.RIGHT, fill=tk.Y, pady=14)
 
@@ -176,7 +176,7 @@ class BudgetUI:
                      self.open_add_entry_window, side=tk.LEFT)
 
     # ──────────────────────────────────────────────
-    #  HELPER: make a flat button with hover effect
+    #  HJÄLP: skapa en platt knapp med hovering-effekt
     # ──────────────────────────────────────────────
 
     def _mk_btn(self, parent, text, bg_color, command,
@@ -190,7 +190,7 @@ class BudgetUI:
             btn.config(width=width)
         btn.pack(side=side, padx=padx, pady=pady)
 
-        # Darken on hover
+        # M\u00f6rkna vid hovring
         def _darken(e, c=bg_color):
             r, g, b = int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
             d = lambda v: max(0, int(v * 0.85))
@@ -204,7 +204,7 @@ class BudgetUI:
         return btn
 
     # ──────────────────────────────────────────────
-    #  REFRESH  (clears body and redraws everything)
+    #  UPPDATERA  (rensar kroppen och ritar om allting)
     # ──────────────────────────────────────────────
 
     def refresh_data(self):
@@ -220,7 +220,7 @@ class BudgetUI:
         wrapper = tk.Frame(self._body, bg=self.COLORS['bg'])
         wrapper.pack(fill=tk.BOTH, expand=True, padx=36, pady=32)
 
-        # ── Section: Monthly Budgets ──
+        # ── Avsnitt: Månadskbudgetar ──
         self._section_label(wrapper, 'Monthly Budgets')
 
         cards_area = tk.Frame(wrapper, bg=self.COLORS['bg'])
@@ -228,7 +228,7 @@ class BudgetUI:
 
         sorted_keys = sorted(entries.keys(), reverse=True)
 
-        # 3-column grid
+        # 3-kolumn grid
         COLS = 3
         for i, key in enumerate(sorted_keys):
             col = i % COLS
@@ -236,7 +236,7 @@ class BudgetUI:
             if col == 0:
                 row_frame = tk.Frame(cards_area, bg=self.COLORS['bg'])
                 row_frame.pack(fill=tk.X, pady=(0, 16))
-                # Pre-create three column slots so layout is always even
+                # Förskapad tre kolumnplatser så layouten är alltid jämn
                 self._col_frames = []
                 for c in range(COLS):
                     cf = tk.Frame(row_frame, bg=self.COLORS['bg'])
@@ -246,7 +246,7 @@ class BudgetUI:
 
             self._build_budget_card(self._col_frames[col], key, entries[key])
 
-        # ── Section: All Transactions ──
+        # ── Avsnitt: Alla transaktioner ──
         self._section_label(wrapper, 'All Transactions', top_pad=44)
         self._build_transactions_table(wrapper, entries)
 
@@ -274,7 +274,7 @@ class BudgetUI:
                  ).pack(anchor=tk.W, pady=(top_pad, 14))
 
     # ──────────────────────────────────────────────
-    #  BUDGET CARD
+    #  BUDGETKORT
     # ──────────────────────────────────────────────
 
     def _build_budget_card(self, parent, key, data):
@@ -291,7 +291,7 @@ class BudgetUI:
                         highlightthickness=1)
         card.pack(fill=tk.BOTH, expand=True)
 
-        # Card header strip
+        # Kortets huvudstreck
         hdr = tk.Frame(card, bg=self.COLORS['primary'], height=52)
         hdr.pack(fill=tk.X)
         hdr.pack_propagate(False)
@@ -312,7 +312,7 @@ class BudgetUI:
         edit_btn.bind('<Enter>', lambda e: edit_btn.config(fg='#FFFFFF'))
         edit_btn.bind('<Leave>', lambda e: edit_btn.config(fg='#BFDBFE'))
 
-        # Body
+        # Kropp
         body = tk.Frame(card, bg=self.COLORS['surface'])
         body.pack(fill=tk.BOTH, expand=True, padx=18, pady=16)
 
@@ -323,7 +323,7 @@ class BudgetUI:
         rem_bg = self.COLORS['success_bg'] if disposable >= 0 else self.COLORS['danger_bg']
         self._card_row(body, 'Remaining', disposable, rem_fg, rem_bg, bold=True)
 
-        # Details button
+        # Detaljer-knapp
         det = tk.Label(body, text='View full breakdown →',
                        font=self.FONTS['small_bold'],
                        bg=self.COLORS['surface'], fg=self.COLORS['primary'],
@@ -348,7 +348,7 @@ class BudgetUI:
                  padx=10, pady=6).pack(side=tk.RIGHT)
 
     # ──────────────────────────────────────────────
-    #  TRANSACTIONS TABLE
+    #  TRANSAKTIONER TABELL
     # ──────────────────────────────────────────────
 
     def _build_transactions_table(self, parent, entries):
@@ -375,7 +375,7 @@ class BudgetUI:
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Alternating row colours
+        # Växlande radfärger
         tree.tag_configure('even', background='#F8FAFC')
         tree.tag_configure('odd',  background=self.COLORS['surface'])
         tree.tag_configure('income',  foreground=self.COLORS['success'])
@@ -403,7 +403,7 @@ class BudgetUI:
                 'debt': 'Debt'}.get(type_str.lower(), type_str)
 
     # ──────────────────────────────────────────────
-    #  MONTH DETAILS WINDOW
+    #  MÅNADFÖNSTER DETALJER
     # ──────────────────────────────────────────────
 
     def show_month_details(self, key, data):
@@ -418,7 +418,7 @@ class BudgetUI:
 
         self._modal_header(win, f'{month_name} {year}', self.COLORS['primary'])
 
-        # Scrollable content
+        # Scrollbar inneh\u00e5l
         outer = tk.Frame(win, bg=self.COLORS['bg'])
         outer.pack(fill=tk.BOTH, expand=True)
 
@@ -448,7 +448,7 @@ class BudgetUI:
         self._detail_section(content, 'Expenses', total_costs, self.COLORS['danger'],  data['costs'])
         self._detail_section(content, 'Debts',    total_debts, self.COLORS['warning'], data['debts'])
 
-        # Summary bar
+        # Sammanfattningsbar
         s_fg = self.COLORS['success'] if disposable >= 0 else self.COLORS['danger']
         s_bg = self.COLORS['success_bg'] if disposable >= 0 else self.COLORS['danger_bg']
 
@@ -471,7 +471,7 @@ class BudgetUI:
                            highlightthickness=1)
         section.pack(fill=tk.X, pady=(0, 14))
 
-        # Coloured header strip
+        # F\u00e4rgat huvudstreck
         hdr = tk.Frame(section, bg=color, height=46)
         hdr.pack(fill=tk.X)
         hdr.pack_propagate(False)
@@ -484,7 +484,7 @@ class BudgetUI:
         tk.Label(hi, text=f'{total:,.0f} kr', font=self.FONTS['body_bold'],
                  bg=color, fg='#FFFFFF').pack(side=tk.RIGHT, pady=12)
 
-        # Item rows
+        # Objektrader
         if items:
             item_frame = tk.Frame(section, bg=self.COLORS['surface'])
             item_frame.pack(fill=tk.X, padx=16, pady=12)
@@ -501,7 +501,7 @@ class BudgetUI:
                          fg=color).pack(side=tk.RIGHT)
 
     # ──────────────────────────────────────────────
-    #  CREATE BUDGET WINDOW
+    #  SKAPA BUDGETFÖNSTER
     # ──────────────────────────────────────────────
 
     def open_create_budget_window(self):
@@ -513,7 +513,7 @@ class BudgetUI:
 
         self._modal_header(win, 'Create Monthly Budget', self.COLORS['primary'])
 
-        # Scrollable form
+        # Scrollbar formulär
         outer = tk.Frame(win, bg=self.COLORS['bg'])
         outer.pack(fill=tk.BOTH, expand=True)
 
@@ -538,12 +538,12 @@ class BudgetUI:
         year_var  = self._form_field(content, 'Year',  str(datetime.now().year))
         month_var = self._form_field(content, 'Month', str(datetime.now().month))
 
-        # ── Income ──
+        # ── Inkomst ──
         self._form_section_label(content, 'Income')
         wage_desc_var   = self._form_field(content, 'Description')
         wage_amount_var = self._form_field(content, 'Amount (kr)')
 
-        # ── Expenses ──
+        # ── Kostnader ──
         self._form_section_label(content, 'Expenses')
         exp_lb = self._form_listbox(content)
 
@@ -562,7 +562,7 @@ class BudgetUI:
         self._form_list_buttons(content, add_expense, remove_expense,
                                 self.COLORS['danger'])
 
-        # ── Debts ──
+        # ── Skulder ──
         self._form_section_label(content, 'Debts')
         debt_lb = self._form_listbox(content)
 
@@ -581,7 +581,7 @@ class BudgetUI:
         self._form_list_buttons(content, add_debt, remove_debt,
                                 self.COLORS['warning'])
 
-        # ── Submit ──
+        # ── Skicka ──
         def submit():
             try:
                 year        = int(year_var.get())
@@ -617,7 +617,7 @@ class BudgetUI:
                      side=tk.TOP, pady=(4, 0))
 
     # ──────────────────────────────────────────────
-    #  EDIT BUDGET WINDOW
+    #  REDIGERA BUDGETFÖNSTER
     # ──────────────────────────────────────────────
 
     def open_edit_budget_window(self, key):
@@ -649,7 +649,7 @@ class BudgetUI:
                      win.destroy, side=tk.TOP)
 
     # ──────────────────────────────────────────────
-    #  ADD ENTRY WINDOW
+    #  LÄGG TILL INMATNINGSFÖNSTER
     # ──────────────────────────────────────────────
 
     def open_add_entry_window(self):
@@ -694,7 +694,7 @@ class BudgetUI:
                      side=tk.TOP, pady=(8, 0))
 
     # ──────────────────────────────────────────────
-    #  REUSABLE FORM HELPERS
+    #  ÅTERANVÄNDBAR FORMULÄRHJÄLPAR
     # ──────────────────────────────────────────────
 
     def _modal_header(self, win, text, color):
@@ -761,7 +761,7 @@ class BudgetUI:
         self._mk_btn(row, '✕ Remove selected', '#94A3B8', remove_cmd, side=tk.LEFT)
 
     # ──────────────────────────────────────────────
-    #  LEGACY SHIM (kept so nothing external breaks)
+    #  ARVET SHIM (behålls så ingenting bryter utanför)
     # ──────────────────────────────────────────────
 
     def create_summary_row(self, parent, label, value, color):

@@ -4,14 +4,14 @@ from collections import defaultdict
 
 
 class BudgetManager:
-    #Manages budget entries and calculations using CSV file.
+    # Hanterar budgetposter och beräkningar med hjälp av CSV-fil.
     
     def __init__(self, csv_file="budget.csv"):
         self.csv_file = csv_file
         self.initialize_csv()
     
     def initialize_csv(self):
-        #Initialize CSV file if it doesn't exist.
+        # Initialisera CSV-fil om den inte finns.
         if not os.path.exists(self.csv_file):
             with open(self.csv_file, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
@@ -19,7 +19,7 @@ class BudgetManager:
             print(f"Created new budget file: {self.csv_file}")
     
     def add_entry(self, year, month, entry_type, description, amount):
-        #Add a single budget entry to CSV.
+        # Lägg till en enskild budgetpost till CSV.
         try:
             with open(self.csv_file, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
@@ -29,12 +29,12 @@ class BudgetManager:
             print(f"Error adding entry: {e}")
     
     def load_all_entries(self):
-        #Load all entries from CSV file.
+        # Ladda alla poster från CSV-fil.
         entries = defaultdict(lambda: {'wage': 0, 'costs': [], 'debts': []})
         try:
-            with open(self.csv_file, 'r') as csvfile:
+            with open(self.csv_file, 'r', encoding='utf-8') as csvfile:
                 reader = csv.reader(csvfile)
-                next(reader)  # skip header
+                next(reader)  # hoppa över rubrik
                 for row in reader:
                     if len(row) >= 5:
                         year, month, entry_type, description, amount = row[0], row[1], row[2], row[3], row[4]
@@ -55,16 +55,16 @@ class BudgetManager:
     
     @staticmethod
     def calculate_total_costs(costs_list):
-        #Calculate total costs from a list of cost tuples.
+        # Beräkna totala kostnader från en lista med kosttupler.
         return sum(amount for _, amount in costs_list)
     
     @staticmethod
     def calculate_total_debts(debts_list):
-        #Calculate total debts from a list of debt tuples.
+        # Beräkna totala skulder från en lista med skuldtupler.
         return sum(amount for _, amount in debts_list)
     
     def display_monthly_budget(self, year, month, entries):
-        #Display budget for a specific month.
+        # Visa budget för en specifik månad.
         key = f"{year}-{month}"
         if key not in entries:
             print(f"No budget data for {year}-{month:02d}")
@@ -98,7 +98,7 @@ class BudgetManager:
         print(f"{'='*50}")
     
     def display_yearly_budget(self, year, entries):
-        #Display budget for a specific year.
+        # Visa budget för ett specifikt år.
         yearly_data = {'wage': 0, 'costs': 0, 'debts': 0, 'months': []}
         
         for key in sorted(entries.keys()):
@@ -126,7 +126,7 @@ class BudgetManager:
         print(f"{'='*50}")
     
     def create_new_budget(self):
-        #Create a new monthly budget with wage, costs, and debts.
+        # Skapa en ny månadsbudget med lön, kostnader och skulder.
         print("\n" + "="*50)
         print("CREATE NEW MONTHLY BUDGET")
         print("="*50)
@@ -134,12 +134,12 @@ class BudgetManager:
         year = int(input("Enter year (e.g., 2026): "))
         month = int(input("Enter month (1-12): "))
         
-        # add wage
+        # lägg till lön
         wage_description = input("Wage description (e.g., Salary): ")
         wage_amount = float(input("Wage amount: "))
         self.add_entry(year, month, "wage", wage_description, wage_amount)
         
-        # add costs
+        # lägg till kostnader
         while True:
             add_more_costs = input("\nAdd a cost? (y/n): ").lower()
             if add_more_costs != 'y':
@@ -148,7 +148,7 @@ class BudgetManager:
             cost_amount = float(input("Cost amount: "))
             self.add_entry(year, month, "cost", cost_description, cost_amount)
         
-        # add debts
+        # lägg till skulder
         while True:
             add_more_debts = input("\nAdd a debt? (y/n): ").lower()
             if add_more_debts != 'y':
