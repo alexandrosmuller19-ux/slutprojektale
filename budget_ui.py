@@ -16,6 +16,7 @@ class BudgetUI:
     COLORS = {
         'primary':      '#1A56DB',
         'primary_dark': '#1344B7',
+        'primary_light':'#F0F9FF',
         'secondary':    '#0EA5E9',
         'accent':       '#06B6D4',
         'success':      '#059669',
@@ -26,6 +27,7 @@ class BudgetUI:
         'warning_bg':   '#FFFBEB',
         'bg':           '#F8FAFC',
         'surface':      '#FFFFFF',
+        'surface_alt':  '#F1F5F9',
         'border':       '#E2E8F0',
         'border_focus': '#93C5FD',
         'text':         '#0F172A',
@@ -33,16 +35,17 @@ class BudgetUI:
         'text_light':   '#94A3B8',
         'sidebar_bg':   '#1E293B',
         'sidebar_text': '#CBD5E1',
+        'shadow':       '#00000008',
     }
 
     FONTS = {
-        'title':        ('Segoe UI', 22, 'bold'),
-        'heading':      ('Segoe UI', 15, 'bold'),
-        'subheading':   ('Segoe UI', 12, 'bold'),
+        'title':        ('Segoe UI', 26, 'bold'),
+        'heading':      ('Segoe UI', 18, 'bold'),
+        'subheading':   ('Segoe UI', 14, 'bold'),
         'body':         ('Segoe UI', 11),
-        'body_bold':    ('Segoe UI', 11, 'bold'),
+        'body_bold':    ('Segoe UI', 12, 'bold'),
         'small':        ('Segoe UI', 10),
-        'small_bold':   ('Segoe UI', 10, 'bold'),
+        'small_bold':   ('Segoe UI', 11, 'bold'),
         'mono':         ('Consolas', 11),
     }
 
@@ -131,7 +134,15 @@ class BudgetUI:
 
         self._body.bind('<Configure>', self._on_body_resize)
         self._canvas.bind('<Configure>', self._on_canvas_resize)
-        self._canvas.bind_all('<MouseWheel>', self._on_mousewheel)
+        
+        # Bind scroll events - supports both mousewheel and touchpad
+        self._canvas.bind('<MouseWheel>', self._on_mousewheel)
+        self._canvas.bind('<Button-4>', self._on_mousewheel_linux)  # Linux scroll up
+        self._canvas.bind('<Button-5>', self._on_mousewheel_linux)  # Linux scroll down
+        self._body.bind_all('<MouseWheel>', self._on_mousewheel)
+        
+        # Make canvas focusable for scrolling
+        self._canvas.focus_set()
 
     def _on_body_resize(self, event):
         self._canvas.configure(scrollregion=self._canvas.bbox('all'))
@@ -140,7 +151,17 @@ class BudgetUI:
         self._canvas.itemconfig(self._canvas_window, width=event.width)
 
     def _on_mousewheel(self, event):
-        self._canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+        try:
+            self._canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+        except:
+            pass
+    
+    def _on_mousewheel_linux(self, event):
+        """Handle Linux scroll events"""
+        if event.num == 4:
+            self._canvas.yview_scroll(-1, 'units')
+        elif event.num == 5:
+            self._canvas.yview_scroll(1, 'units')
 
     # ──────────────────────────────────────────────
     #  NAVBAR
@@ -184,7 +205,7 @@ class BudgetUI:
         btn = tk.Button(parent, text=text, font=self.FONTS['body_bold'],
                         bg=bg_color, fg='#FFFFFF', activebackground=bg_color,
                         activeforeground='#FFFFFF', relief=tk.FLAT,
-                        cursor='hand2', bd=0, padx=18, pady=9,
+                        cursor='hand2', bd=0, padx=20, pady=11,
                         command=command)
         if width:
             btn.config(width=width)
@@ -193,7 +214,7 @@ class BudgetUI:
         # M\u00f6rkna vid hovring
         def _darken(e, c=bg_color):
             r, g, b = int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
-            d = lambda v: max(0, int(v * 0.85))
+            d = lambda v: max(0, int(v * 0.80))
             btn.config(bg=f'#{d(r):02x}{d(g):02x}{d(b):02x}')
 
         def _restore(e, c=bg_color):
@@ -220,8 +241,11 @@ class BudgetUI:
         wrapper = tk.Frame(self._body, bg=self.COLORS['bg'])
         wrapper.pack(fill=tk.BOTH, expand=True, padx=36, pady=32)
 
+        # ── Dashboard Summary (Top Stats) ──
+        self._build_dashboard_summary(wrapper, entries)
+
         # ── Avsnitt: Månadskbudgetar ──
-        self._section_label(wrapper, 'Monthly Budgets')
+        self._section_label(wrapper, 'Monthly Budgets', top_pad=28)
 
         cards_area = tk.Frame(wrapper, bg=self.COLORS['bg'])
         cards_area.pack(fill=tk.X)
@@ -235,7 +259,7 @@ class BudgetUI:
             row = i // COLS
             if col == 0:
                 row_frame = tk.Frame(cards_area, bg=self.COLORS['bg'])
-                row_frame.pack(fill=tk.X, pady=(0, 16))
+                row_frame.pack(fill=tk.X, pady=(0, 20))
                 # Förskapad tre kolumnplatser så layouten är alltid jämn
                 self._col_frames = []
                 for c in range(COLS):
@@ -247,7 +271,7 @@ class BudgetUI:
             self._build_budget_card(self._col_frames[col], key, entries[key])
 
         # ── Avsnitt: Alla transaktioner ──
-        self._section_label(wrapper, 'All Transactions', top_pad=44)
+        self._section_label(wrapper, 'Transaction History', top_pad=44)
         self._build_transactions_table(wrapper, entries)
 
     def _show_empty_state(self):
@@ -268,10 +292,62 @@ class BudgetUI:
                  font=self.FONTS['body'], bg=self.COLORS['surface'],
                  fg=self.COLORS['text_muted']).pack(pady=(4, 36))
 
+    def _build_dashboard_summary(self, parent, entries):
+        """Build summary dashboard with key metrics"""
+        total_income = 0
+        total_expenses = 0
+        total_debts = 0
+        
+        for data in entries.values():
+            total_income += data['wage']
+            total_expenses += self.budget.calculate_total_costs(data['costs'])
+            total_debts += self.budget.calculate_total_debts(data['debts'])
+        
+        remaining = total_income - total_expenses - total_debts
+        
+        dashboard = tk.Frame(parent, bg=self.COLORS['bg'])
+        dashboard.pack(fill=tk.X, pady=(0, 8))
+        
+        # Create 4 metric cards in a row
+        metrics = [
+            ('Total Income', f'{total_income:,.0f} kr', self.COLORS['success'], self.COLORS['success_bg']),
+            ('Total Expenses', f'{total_expenses:,.0f} kr', self.COLORS['danger'], self.COLORS['danger_bg']),
+            ('Total Debts', f'{total_debts:,.0f} kr', self.COLORS['warning'], self.COLORS['warning_bg']),
+            ('Remaining', f'{remaining:,.0f} kr', 
+             self.COLORS['success'] if remaining >= 0 else self.COLORS['danger'],
+             self.COLORS['success_bg'] if remaining >= 0 else self.COLORS['danger_bg']),
+        ]
+        
+        for label, value, color, bg in metrics:
+            self._build_metric_card(dashboard, label, value, color, bg)
+    
+    def _build_metric_card(self, parent, label, value, color, bg):
+        """Build a small metric card for dashboard"""
+        card = tk.Frame(parent, bg=bg,
+                        highlightbackground=color,
+                        highlightthickness=2)
+        card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 12), pady=0)
+        
+        inner = tk.Frame(card, bg=bg)
+        inner.pack(fill=tk.BOTH, expand=True, padx=16, pady=12)
+        
+        tk.Label(inner, text=label, font=self.FONTS['small'],
+                 bg=bg, fg=self.COLORS['text_muted']).pack(anchor=tk.W)
+        tk.Label(inner, text=value, font=self.FONTS['heading'],
+                 bg=bg, fg=color).pack(anchor=tk.W, pady=(4, 0))
+
+
     def _section_label(self, parent, text, top_pad=0):
-        tk.Label(parent, text=text, font=self.FONTS['heading'],
-                 bg=self.COLORS['bg'], fg=self.COLORS['text']
-                 ).pack(anchor=tk.W, pady=(top_pad, 14))
+        label_frame = tk.Frame(parent, bg=self.COLORS['bg'])
+        label_frame.pack(anchor=tk.W, pady=(top_pad, 20), fill=tk.X)
+        
+        tk.Label(label_frame, text=text, font=self.FONTS['heading'],
+                 bg=self.COLORS['bg'], fg=self.COLORS['primary']
+                 ).pack(anchor=tk.W, side=tk.LEFT)
+        
+        # Decorative line
+        line = tk.Frame(label_frame, bg=self.COLORS['primary'], height=3)
+        line.pack(anchor=tk.W, pady=(10, 0), fill=tk.X, expand=True, padx=(160, 0))
 
     # ──────────────────────────────────────────────
     #  BUDGETKORT
@@ -286,23 +362,30 @@ class BudgetUI:
         debts = self.budget.calculate_total_debts(data['debts'])
         disposable = wage - costs - debts
 
+        # Card with subtle shadow effect
         card = tk.Frame(parent, bg=self.COLORS['surface'],
                         highlightbackground=self.COLORS['border'],
                         highlightthickness=1)
         card.pack(fill=tk.BOTH, expand=True)
 
-        # Kortets huvudstreck
-        hdr = tk.Frame(card, bg=self.COLORS['primary'], height=52)
+        # Kortets huvudstreck - Colored header
+        hdr = tk.Frame(card, bg=self.COLORS['primary'], height=68)
         hdr.pack(fill=tk.X)
         hdr.pack_propagate(False)
 
         hdr_inner = tk.Frame(hdr, bg=self.COLORS['primary'])
         hdr_inner.pack(fill=tk.BOTH, expand=True, padx=18)
 
-        tk.Label(hdr_inner, text=f'{month_name} {year}',
-                 font=self.FONTS['subheading'], bg=self.COLORS['primary'],
-                 fg='#FFFFFF').pack(side=tk.LEFT, pady=14)
+        # Title section
+        title_frame = tk.Frame(hdr_inner, bg=self.COLORS['primary'])
+        title_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=14)
 
+        tk.Label(title_frame, text=f'{month_name}', font=('Segoe UI', 18, 'bold'),
+                 bg=self.COLORS['primary'], fg='#FFFFFF').pack(anchor=tk.W)
+        tk.Label(title_frame, text=f'{year}', font=self.FONTS['small'],
+                 bg=self.COLORS['primary'], fg='#BFDBFE').pack(anchor=tk.W)
+
+        # Edit button
         edit_btn = tk.Label(hdr_inner, text='Edit →',
                             font=self.FONTS['small_bold'],
                             bg=self.COLORS['primary'], fg='#BFDBFE',
@@ -312,40 +395,56 @@ class BudgetUI:
         edit_btn.bind('<Enter>', lambda e: edit_btn.config(fg='#FFFFFF'))
         edit_btn.bind('<Leave>', lambda e: edit_btn.config(fg='#BFDBFE'))
 
-        # Kropp
+        # Body with better spacing
         body = tk.Frame(card, bg=self.COLORS['surface'])
-        body.pack(fill=tk.BOTH, expand=True, padx=18, pady=16)
+        body.pack(fill=tk.BOTH, expand=True, padx=18, pady=18)
 
-        self._card_row(body, 'Income', wage, self.COLORS['success'], self.COLORS['success_bg'])
-        self._card_row(body, 'Expenses', costs, self.COLORS['danger'], self.COLORS['danger_bg'])
+        # Income row
+        self._card_row(body, 'Income', wage, self.COLORS['success'], 
+                       self.COLORS['success_bg'], is_main=True)
+        
+        # Expenses row
+        self._card_row(body, 'Expenses', costs, self.COLORS['danger'], 
+                       self.COLORS['danger_bg'], is_main=True)
+        
+        # Debts row (smaller if present)
+        if debts > 0:
+            self._card_row(body, 'Debts', debts, self.COLORS['warning'], 
+                           self.COLORS['warning_bg'], is_main=False)
 
+        # Remaining (highlighted)
         rem_fg = self.COLORS['success'] if disposable >= 0 else self.COLORS['danger']
         rem_bg = self.COLORS['success_bg'] if disposable >= 0 else self.COLORS['danger_bg']
-        self._card_row(body, 'Remaining', disposable, rem_fg, rem_bg, bold=True)
+        self._card_row(body, 'Remaining', disposable, rem_fg, rem_bg, bold=True, is_main=True)
 
-        # Detaljer-knapp
+        # Separator
+        tk.Frame(body, bg=self.COLORS['border'], height=1).pack(fill=tk.X, pady=12)
+
+        # Details link
         det = tk.Label(body, text='View full breakdown →',
                        font=self.FONTS['small_bold'],
                        bg=self.COLORS['surface'], fg=self.COLORS['primary'],
                        cursor='hand2')
-        det.pack(anchor=tk.W, pady=(10, 4))
+        det.pack(anchor=tk.W)
         det.bind('<Button-1>', lambda e, k=key, d=data: self.show_month_details(k, d))
         det.bind('<Enter>', lambda e: det.config(fg=self.COLORS['primary_dark']))
         det.bind('<Leave>', lambda e: det.config(fg=self.COLORS['primary']))
 
-    def _card_row(self, parent, label, amount, fg, bg, bold=False):
-        row = tk.Frame(parent, bg=bg)
-        row.pack(fill=tk.X, pady=4)
+    def _card_row(self, parent, label, amount, fg, bg, bold=False, is_main=False):
+        row = tk.Frame(parent, bg=bg if is_main else self.COLORS['surface'])
+        row.pack(fill=tk.X, pady=(8 if not is_main else 10))
 
         font = self.FONTS['body_bold'] if bold else self.FONTS['body']
+        label_font = ('Segoe UI', 12, 'bold') if is_main else self.FONTS['small_bold']
 
-        tk.Label(row, text=label, font=self.FONTS['small'],
-                 bg=bg, fg=self.COLORS['text_muted'],
-                 padx=10, pady=6).pack(side=tk.LEFT)
+        tk.Label(row, text=label, font=label_font,
+                 bg=bg if is_main else self.COLORS['surface'], 
+                 fg=self.COLORS['text'] if is_main else self.COLORS['text_muted'],
+                 padx=(12 if is_main else 0), pady=(8 if is_main else 4)).pack(side=tk.LEFT)
 
-        tk.Label(row, text=f'{amount:,.0f} kr', font=font,
-                 bg=bg, fg=fg,
-                 padx=10, pady=6).pack(side=tk.RIGHT)
+        tk.Label(row, text=f'{amount:,.0f} kr', font=('Segoe UI', 13, 'bold') if is_main else font,
+                 bg=bg if is_main else self.COLORS['surface'], fg=fg,
+                 padx=(12 if is_main else 0), pady=(8 if is_main else 4)).pack(side=tk.RIGHT)
 
     # ──────────────────────────────────────────────
     #  TRANSAKTIONER TABELL
@@ -362,8 +461,8 @@ class BudgetUI:
 
         tree.column('Date',        width=110, anchor=tk.CENTER, stretch=False)
         tree.column('Type',        width=130, anchor=tk.CENTER, stretch=False)
-        tree.column('Description', width=500, anchor=tk.W,      stretch=True)
-        tree.column('Amount',      width=160, anchor=tk.E,       stretch=False)
+        tree.column('Description', width=400, anchor=tk.W,      stretch=True)
+        tree.column('Amount',      width=120, anchor=tk.E,      stretch=False)
 
         for col in cols:
             tree.heading(col, text=col)
@@ -382,25 +481,163 @@ class BudgetUI:
         tree.tag_configure('expense', foreground=self.COLORS['danger'])
         tree.tag_configure('debt',    foreground=self.COLORS['warning'])
 
+        # Store table data for reference
+        self._table_entries = []
+
         try:
-            df = pd.read_csv('budget.csv')
-            if not df.empty:
-                for idx, row in df.iterrows():
+            all_entries = self.budget.get_all_raw_entries()
+            if all_entries:
+                for csv_idx, row in enumerate(all_entries):
                     date_str  = f"{row['Year']}-{int(row['Month']):02d}"
                     type_lbl  = self._translate_type(row['Type'])
-                    row_tag   = 'even' if idx % 2 == 0 else 'odd'
+                    row_tag   = 'even' if csv_idx % 2 == 0 else 'odd'
                     type_tag  = {'Income': 'income', 'Expense': 'expense',
                                  'Debt': 'debt'}.get(type_lbl, 'odd')
+                    
+                    # Store entry with its CSV index
+                    self._table_entries.append({
+                        'csv_index': csv_idx,
+                        'Year': int(row['Year']),
+                        'Month': int(row['Month']),
+                        'Type': row['Type'],
+                        'Description': row['Description'],
+                        'Amount': float(row['Amount'])
+                    })
+                    
                     tree.insert('', tk.END,
                                 values=(date_str, type_lbl, row['Description'],
                                         f"{float(row['Amount']):,.0f} kr"),
                                 tags=(row_tag, type_tag))
         except Exception as e:
             messagebox.showerror('Error', f'Could not load entries: {e}')
+        
+        # Bind double-click to edit
+        def on_double_click(event):
+            selection = tree.selection()
+            if selection:
+                item_id = selection[0]
+                idx = int(tree.index(item_id))
+                if 0 <= idx < len(self._table_entries):
+                    entry = self._table_entries[idx]
+                    self.open_edit_entry_window(entry['csv_index'], entry)
+        
+        tree.bind('<Double-1>', on_double_click)
 
     def _translate_type(self, type_str):
         return {'wage': 'Income', 'cost': 'Expense',
                 'debt': 'Debt'}.get(type_str.lower(), type_str)
+
+    # ──────────────────────────────────────────────
+    #  EDIT ENTRY FÖNSTER
+    # ──────────────────────────────────────────────
+
+    def open_edit_entry_window(self, csv_index, entry_data):
+        """Open window to edit an existing entry"""
+        win = tk.Toplevel(self.root)
+        win.title('Edit Entry')
+        win.geometry('500x520')
+        win.configure(bg=self.COLORS['bg'])
+        win.resizable(False, False)
+
+        self._modal_header(win, 'Edit Budget Entry', self.COLORS['warning'])
+
+        content = tk.Frame(win, bg=self.COLORS['bg'])
+        content.pack(fill=tk.BOTH, expand=True, padx=28, pady=28)
+
+        # ── Entry details ──
+        self._form_section_label(content, '📝 Entry Details', top_pad=0)
+        
+        type_mapping = {'wage': 'wage', 'cost': 'cost', 'debt': 'debt'}
+        type_var = tk.StringVar(value=type_mapping.get(entry_data['Type'].lower(), 'cost'))
+        
+        # Type field
+        row = tk.Frame(content, bg=self.COLORS['bg'])
+        row.pack(fill=tk.X, pady=8)
+        tk.Label(row, text='Type', font=self.FONTS['small_bold'],
+                 bg=self.COLORS['bg'], fg=self.COLORS['text'],
+                 width=16, anchor=tk.W).pack(side=tk.LEFT, padx=(0, 12), pady=(0, 4))
+        type_widget = ttk.Combobox(row, textvariable=type_var,
+                                   values=['wage', 'cost', 'debt'],
+                                   state='readonly', font=self.FONTS['body'])
+        type_widget.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=6)
+        
+        desc_var = self._form_field(content, 'Description', entry_data['Description'])
+        amount_var = self._form_field(content, 'Amount (kr)', str(entry_data['Amount']))
+
+        # ── When ──
+        self._form_section_label(content, '📅 When')
+        year_var = self._form_field(content, 'Year', str(entry_data['Year']))
+        month_var = self._form_field(content, 'Month', str(entry_data['Month']))
+
+        def submit():
+            try:
+                year = int(year_var.get())
+                month = int(month_var.get())
+                entry_type = type_var.get()
+                description = desc_var.get().strip()
+                amount = float(amount_var.get())
+
+                if not all([year, month, entry_type, description, amount]):
+                    messagebox.showerror('Error', 'Please fill in all fields', parent=win)
+                    return
+
+                # Update the entry
+                self.budget.update_entry(csv_index, year, month, entry_type, description, amount)
+                messagebox.showinfo('Success', 'Entry updated successfully!', parent=win)
+                win.destroy()
+                self.refresh_data()
+            except Exception as e:
+                messagebox.showerror('Error', f'Could not update entry: {e}', parent=win)
+
+        tk.Frame(content, bg=self.COLORS['bg'], height=16).pack()
+        btn_frame = tk.Frame(content, bg=self.COLORS['bg'])
+        btn_frame.pack(fill=tk.X)
+        self._mk_btn(btn_frame, 'Save Changes', self.COLORS['warning'], submit,
+                     side=tk.LEFT, padx=(0, 8))
+        self._mk_btn(btn_frame, 'Cancel', self.COLORS['text_light'], win.destroy,
+                     side=tk.LEFT)
+
+    def _show_entry_context_menu(self, event, csv_index, entry_data):
+        """Show right-click context menu for table entry"""
+        menu = tk.Menu(self.root, tearoff=False)
+        menu.add_command(label='✏️  Edit', 
+                        command=lambda: self.open_edit_entry_window(csv_index, entry_data))
+        menu.add_command(label='🗑️  Delete', 
+                        command=lambda: self._delete_entry_prompt(csv_index, entry_data))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _delete_entry_prompt(self, csv_index, entry_data):
+        """Show confirmation dialog before deleting entry"""
+        desc = entry_data['Description']
+        amount = entry_data['Amount']
+        msg = f'Delete entry: {desc} ({amount} kr)?\n\nThis action cannot be undone.'
+        
+        if messagebox.askyesno('Confirm Delete', msg):
+            self.budget.delete_entry(csv_index)
+            self.refresh_data()
+
+    def _quick_edit_entry(self, year, month, description, amount):
+        """Quick edit for entries from month detail view"""
+        # Find the CSV index for this entry
+        all_entries = self.budget.get_all_raw_entries()
+        for idx, entry in enumerate(all_entries):
+            if (int(entry['Year']) == year and 
+                int(entry['Month']) == month and 
+                entry['Description'] == description and 
+                float(entry['Amount']) == amount):
+                entry_data = {
+                    'Year': year,
+                    'Month': month,
+                    'Type': entry['Type'],
+                    'Description': description,
+                    'Amount': amount
+                }
+                self.open_edit_entry_window(idx, entry_data)
+                return
+        messagebox.showerror('Error', 'Could not find entry to edit')
 
     # ──────────────────────────────────────────────
     #  MÅNADFÖNSTER DETALJER
@@ -431,7 +668,24 @@ class BudgetUI:
         win_id = cv.create_window((0, 0), window=inner, anchor='nw')
         cv.configure(yscrollcommand=sb.set)
         cv.bind('<Configure>', lambda e: cv.itemconfig(win_id, width=e.width))
-        cv.bind_all('<MouseWheel>', lambda e: cv.yview_scroll(int(-1*(e.delta/120)), 'units'))
+        # Bind scroll events only to this canvas, not globally, to avoid conflicts when modal closes
+        def safe_scroll_mouse(e):
+            try:
+                cv.yview_scroll(int(-1*(e.delta/120)), 'units')
+            except:
+                pass
+        
+        def safe_scroll_linux(delta):
+            def handler(e):
+                try:
+                    cv.yview_scroll(delta, 'units')
+                except:
+                    pass
+            return handler
+        
+        cv.bind('<MouseWheel>', safe_scroll_mouse)
+        cv.bind('<Button-4>', safe_scroll_linux(-1))  # Linux scroll up
+        cv.bind('<Button-5>', safe_scroll_linux(1))   # Linux scroll down
 
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         cv.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -444,9 +698,9 @@ class BudgetUI:
         total_debts = self.budget.calculate_total_debts(data['debts'])
         disposable  = wage - total_costs - total_debts
 
-        self._detail_section(content, 'Income',   wage,        self.COLORS['success'], [])
-        self._detail_section(content, 'Expenses', total_costs, self.COLORS['danger'],  data['costs'])
-        self._detail_section(content, 'Debts',    total_debts, self.COLORS['warning'], data['debts'])
+        self._detail_section(content, 'Income',   wage,        self.COLORS['success'], [], int(year), int(month))
+        self._detail_section(content, 'Expenses', total_costs, self.COLORS['danger'],  data['costs'], int(year), int(month))
+        self._detail_section(content, 'Debts',    total_debts, self.COLORS['warning'], data['debts'], int(year), int(month))
 
         # Sammanfattningsbar
         s_fg = self.COLORS['success'] if disposable >= 0 else self.COLORS['danger']
@@ -465,40 +719,121 @@ class BudgetUI:
                  font=('Segoe UI', 20, 'bold'), bg=s_bg,
                  fg=s_fg).pack(anchor=tk.W, pady=(4, 0))
 
-    def _detail_section(self, parent, title, total, color, items):
+    def _detail_section(self, parent, title, total, color, items, year=None, month=None):
         section = tk.Frame(parent, bg=self.COLORS['surface'],
                            highlightbackground=self.COLORS['border'],
                            highlightthickness=1)
-        section.pack(fill=tk.X, pady=(0, 14))
+        section.pack(fill=tk.X, pady=(0, 16))
 
-        # F\u00e4rgat huvudstreck
-        hdr = tk.Frame(section, bg=color, height=46)
+        # Färgat huvudstreck
+        hdr = tk.Frame(section, bg=color, height=52)
         hdr.pack(fill=tk.X)
         hdr.pack_propagate(False)
 
         hi = tk.Frame(hdr, bg=color)
-        hi.pack(fill=tk.BOTH, expand=True, padx=16)
+        hi.pack(fill=tk.BOTH, expand=True, padx=18)
 
-        tk.Label(hi, text=title, font=self.FONTS['body_bold'],
-                 bg=color, fg='#FFFFFF').pack(side=tk.LEFT, pady=12)
-        tk.Label(hi, text=f'{total:,.0f} kr', font=self.FONTS['body_bold'],
-                 bg=color, fg='#FFFFFF').pack(side=tk.RIGHT, pady=12)
+        tk.Label(hi, text=title, font=('Segoe UI', 13, 'bold'),
+                 bg=color, fg='#FFFFFF').pack(side=tk.LEFT, pady=13)
+        tk.Label(hi, text=f'{total:,.0f} kr', font=('Segoe UI', 14, 'bold'),
+                 bg=color, fg='#FFFFFF').pack(side=tk.RIGHT, pady=13)
 
         # Objektrader
         if items:
             item_frame = tk.Frame(section, bg=self.COLORS['surface'])
-            item_frame.pack(fill=tk.X, padx=16, pady=12)
+            item_frame.pack(fill=tk.X, padx=18, pady=16)
 
             for name, amount in items:
-                row = tk.Frame(item_frame, bg=self.COLORS['surface'])
-                row.pack(fill=tk.X, pady=5)
+                row = tk.Frame(item_frame, bg=self.COLORS['surface_alt'])
+                row.pack(fill=tk.X, pady=6, padx=10, ipady=8)
 
-                tk.Label(row, text=name, font=self.FONTS['body'],
-                         bg=self.COLORS['surface'],
-                         fg=self.COLORS['text']).pack(side=tk.LEFT, fill=tk.X, expand=True)
-                tk.Label(row, text=f'{amount:,.0f} kr', font=self.FONTS['body_bold'],
-                         bg=self.COLORS['surface'],
-                         fg=color).pack(side=tk.RIGHT)
+                # Left side: Name and amount
+                left_frame = tk.Frame(row, bg=self.COLORS['surface_alt'])
+                left_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                
+                tk.Label(left_frame, text=name, font=self.FONTS['body_bold'],
+                         bg=self.COLORS['surface_alt'],
+                         fg=self.COLORS['text']).pack(anchor=tk.W)
+                
+                # Right side: Amount and action buttons
+                right_frame = tk.Frame(row, bg=self.COLORS['surface_alt'])
+                right_frame.pack(side=tk.RIGHT)
+                
+                tk.Label(right_frame, text=f'{amount:,.0f} kr', font=('Segoe UI', 12, 'bold'),
+                         bg=self.COLORS['surface_alt'],
+                         fg=color).pack(side=tk.RIGHT, padx=(14, 0))
+                
+                # Edit and Delete buttons
+                if year and month:
+                    # Find the CSV index for this entry
+                    def make_edit_func(y, m, n, a):
+                        def edit_func():
+                            all_entries = self.budget.get_all_raw_entries()
+                            for idx, entry in enumerate(all_entries):
+                                if (int(entry['Year']) == y and 
+                                    int(entry['Month']) == m and 
+                                    entry['Description'] == n and 
+                                    float(entry['Amount']) == a):
+                                    entry_data = {
+                                        'Year': y,
+                                        'Month': m,
+                                        'Type': entry['Type'],
+                                        'Description': n,
+                                        'Amount': a
+                                    }
+                                    self.open_edit_entry_window(idx, entry_data)
+                                    return
+                        return edit_func
+                    
+                    def make_delete_func(y, m, n, a):
+                        def delete_func():
+                            all_entries = self.budget.get_all_raw_entries()
+                            for idx, entry in enumerate(all_entries):
+                                if (int(entry['Year']) == y and 
+                                    int(entry['Month']) == m and 
+                                    entry['Description'] == n and 
+                                    float(entry['Amount']) == a):
+                                    desc = entry['Description']
+                                    amt = entry['Amount']
+                                    msg = f'Delete: {desc} ({amt} kr)?\n\nThis cannot be undone.'
+                                    if messagebox.askyesno('Confirm Delete', msg):
+                                        self.budget.delete_entry(idx)
+                                        self.refresh_data()
+                                    return
+                        return delete_func
+                    
+                    # Delete button
+                    del_btn = tk.Label(right_frame, text='🗑️', font=('Segoe UI', 11),
+                                      bg=self.COLORS['surface_alt'], fg=self.COLORS['danger'],
+                                      cursor='hand2', padx=6)
+                    del_btn.pack(side=tk.RIGHT)
+                    del_btn.bind('<Button-1>', lambda e: make_delete_func(year, month, name, amount)())
+                    del_btn.bind('<Enter>', lambda e: del_btn.config(fg=self.COLORS['primary_dark']))
+                    del_btn.bind('<Leave>', lambda e: del_btn.config(fg=self.COLORS['danger']))
+                    
+                    # Edit button
+                    edit_btn = tk.Label(right_frame, text='✏️', font=('Segoe UI', 11),
+                                       bg=self.COLORS['surface_alt'], fg=self.COLORS['warning'],
+                                       cursor='hand2', padx=6)
+                    edit_btn.pack(side=tk.RIGHT)
+                    edit_btn.bind('<Button-1>', lambda e: make_edit_func(year, month, name, amount)())
+                    edit_btn.bind('<Enter>', lambda e: edit_btn.config(fg=self.COLORS['primary_dark']))
+                    edit_btn.bind('<Leave>', lambda e: edit_btn.config(fg=self.COLORS['warning']))
+        
+        # Add Entry button at the bottom if we have year/month info
+        if year and month:
+            add_frame = tk.Frame(section, bg=self.COLORS['surface'])
+            add_frame.pack(fill=tk.X, padx=18, pady=(8, 14))
+            
+            add_link = tk.Label(add_frame, text='+ Add New Entry', font=self.FONTS['small_bold'],
+                               bg=self.COLORS['surface'], fg=self.COLORS['secondary'],
+                               cursor='hand2')
+            add_link.pack(anchor=tk.W)
+            
+            add_link.bind('<Button-1>', lambda e, y=year, m=month: 
+                         self.open_add_entry_window(y, m))
+            add_link.bind('<Enter>', lambda e: add_link.config(fg=self.COLORS['accent']))
+            add_link.bind('<Leave>', lambda e: add_link.config(fg=self.COLORS['secondary']))
 
     # ──────────────────────────────────────────────
     #  SKAPA BUDGETFÖNSTER
@@ -507,7 +842,7 @@ class BudgetUI:
     def open_create_budget_window(self):
         win = tk.Toplevel(self.root)
         win.title('Create New Budget')
-        win.geometry('560x760')
+        win.geometry('560x800')
         win.configure(bg=self.COLORS['bg'])
         win.resizable(False, True)
 
@@ -531,20 +866,20 @@ class BudgetUI:
         cv.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         content = tk.Frame(form_wrap, bg=self.COLORS['bg'])
-        content.pack(fill=tk.BOTH, expand=True, padx=28, pady=24)
+        content.pack(fill=tk.BOTH, expand=True, padx=28, pady=28)
 
         # ── Period ──
-        self._form_section_label(content, 'Period')
+        self._form_section_label(content, '📅 When', top_pad=0)
         year_var  = self._form_field(content, 'Year',  str(datetime.now().year))
         month_var = self._form_field(content, 'Month', str(datetime.now().month))
 
         # ── Inkomst ──
-        self._form_section_label(content, 'Income')
+        self._form_section_label(content, '💰 Income')
         wage_desc_var   = self._form_field(content, 'Description')
         wage_amount_var = self._form_field(content, 'Amount (kr)')
 
         # ── Kostnader ──
-        self._form_section_label(content, 'Expenses')
+        self._form_section_label(content, '💳 Expenses')
         exp_lb = self._form_listbox(content)
 
         def add_expense():
@@ -563,7 +898,7 @@ class BudgetUI:
                                 self.COLORS['danger'])
 
         # ── Skulder ──
-        self._form_section_label(content, 'Debts')
+        self._form_section_label(content, '⚠️  Debts')
         debt_lb = self._form_listbox(content)
 
         def add_debt():
@@ -612,9 +947,13 @@ class BudgetUI:
             except Exception as e:
                 messagebox.showerror('Error', f'Could not create budget: {e}', parent=win)
 
-        tk.Frame(content, bg=self.COLORS['bg'], height=8).pack()
-        self._mk_btn(content, 'Create Budget', self.COLORS['success'], submit,
-                     side=tk.TOP, pady=(4, 0))
+        tk.Frame(content, bg=self.COLORS['bg'], height=12).pack()
+        btn_frame = tk.Frame(content, bg=self.COLORS['bg'])
+        btn_frame.pack(fill=tk.X)
+        self._mk_btn(btn_frame, 'Create Budget', self.COLORS['success'], submit,
+                     side=tk.LEFT, padx=(0, 8))
+        self._mk_btn(btn_frame, 'Cancel', self.COLORS['text_light'], win.destroy,
+                     side=tk.LEFT)
 
     # ──────────────────────────────────────────────
     #  REDIGERA BUDGETFÖNSTER
@@ -626,33 +965,141 @@ class BudgetUI:
 
         win = tk.Toplevel(self.root)
         win.title('Edit Budget')
-        win.geometry('480x280')
+        win.geometry('700x600')
         win.configure(bg=self.COLORS['bg'])
-        win.resizable(False, False)
+        win.resizable(True, True)
 
         self._modal_header(win, f'Edit — {month_name} {year}', self.COLORS['secondary'])
 
-        content = tk.Frame(win, bg=self.COLORS['bg'])
+        # Scrollable content
+        outer = tk.Frame(win, bg=self.COLORS['bg'])
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        cv = tk.Canvas(outer, bg=self.COLORS['bg'], highlightthickness=0)
+        sb = ttk.Scrollbar(outer, orient=tk.VERTICAL, command=cv.yview,
+                           style='Vertical.TScrollbar')
+        inner = tk.Frame(cv, bg=self.COLORS['bg'])
+
+        inner.bind('<Configure>', lambda e: cv.configure(scrollregion=cv.bbox('all')))
+        win_id = cv.create_window((0, 0), window=inner, anchor='nw')
+        cv.configure(yscrollcommand=sb.set)
+        cv.bind('<Configure>', lambda e: cv.itemconfig(win_id, width=e.width))
+
+        def safe_scroll_mouse(e):
+            try:
+                cv.yview_scroll(int(-1*(e.delta/120)), 'units')
+            except:
+                pass
+        
+        cv.bind('<MouseWheel>', safe_scroll_mouse)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        cv.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        content = tk.Frame(inner, bg=self.COLORS['bg'])
         content.pack(fill=tk.BOTH, expand=True, padx=28, pady=24)
 
-        info = tk.Label(content,
-                        text='Use "Add Entry" to add new rows to this month\'s budget.',
-                        font=self.FONTS['body'], bg=self.COLORS['bg'],
-                        fg=self.COLORS['text_muted'], wraplength=400, justify=tk.LEFT)
-        info.pack(anchor=tk.W, pady=(0, 20))
+        # Info box
+        info_box = tk.Frame(content, bg=self.COLORS['primary_light'],
+                           highlightbackground=self.COLORS['primary'],
+                           highlightthickness=1)
+        info_box.pack(fill=tk.X, pady=(0, 20))
 
-        self._mk_btn(content, '+ Add Entry to this month',
-                     self.COLORS['primary'], self.open_add_entry_window,
-                     side=tk.TOP, pady=(0, 10))
+        info_inner = tk.Frame(info_box, bg=self.COLORS['primary_light'])
+        info_inner.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
 
-        self._mk_btn(content, 'Close', self.COLORS['text_muted'],
-                     win.destroy, side=tk.TOP)
+        tk.Label(info_inner,
+                 text='💡 Manage entries for this month. Click the buttons next to each entry to edit or delete.',
+                 font=self.FONTS['body'], bg=self.COLORS['primary_light'],
+                 fg=self.COLORS['primary'], wraplength=400, justify=tk.LEFT).pack(anchor=tk.W)
+
+        # Show entries for this month
+        tk.Label(content, text='Entries', font=self.FONTS['subheading'],
+                 bg=self.COLORS['bg'], fg=self.COLORS['text']).pack(anchor=tk.W, pady=(12, 8))
+
+        all_entries = self.budget.get_all_raw_entries()
+        month_entries = [(idx, e) for idx, e in enumerate(all_entries) 
+                        if int(e['Year']) == int(year) and int(e['Month']) == int(month)]
+
+        if month_entries:
+            entries_frame = tk.Frame(content, bg=self.COLORS['surface'],
+                                    highlightbackground=self.COLORS['border'],
+                                    highlightthickness=1)
+            entries_frame.pack(fill=tk.X, pady=(0, 16))
+
+            for csv_idx, entry in month_entries:
+                row = tk.Frame(entries_frame, bg=self.COLORS['surface_alt'])
+                row.pack(fill=tk.X, padx=12, pady=6, ipady=8)
+
+                # Entry info
+                left = tk.Frame(row, bg=self.COLORS['surface_alt'])
+                left.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+                type_label = self._translate_type(entry['Type'])
+                tk.Label(left, text=f"{type_label}: {entry['Description']}", 
+                         font=self.FONTS['body_bold'],
+                         bg=self.COLORS['surface_alt'],
+                         fg=self.COLORS['text']).pack(anchor=tk.W)
+                tk.Label(left, text=f"{entry['Amount']} kr", 
+                         font=self.FONTS['body'],
+                         bg=self.COLORS['surface_alt'],
+                         fg=self.COLORS['text_muted']).pack(anchor=tk.W)
+
+                # Action buttons
+                right = tk.Frame(row, bg=self.COLORS['surface_alt'])
+                right.pack(side=tk.RIGHT, padx=(12, 0))
+
+                def make_delete_func(idx, e):
+                    def delete_func():
+                        msg = f"Delete: {e['Description']} ({e['Amount']} kr)?\n\nThis cannot be undone."
+                        if messagebox.askyesno('Confirm Delete', msg):
+                            self.budget.delete_entry(idx)
+                            win.destroy()
+                            self.refresh_data()
+                    return delete_func
+
+                def make_edit_func(idx, e):
+                    def edit_func():
+                        entry_data = {
+                            'Year': int(e['Year']),
+                            'Month': int(e['Month']),
+                            'Type': e['Type'],
+                            'Description': e['Description'],
+                            'Amount': float(e['Amount'])
+                        }
+                        self.open_edit_entry_window(idx, entry_data)
+                    return edit_func
+
+                del_btn = tk.Button(right, text='🗑️ Delete', font=self.FONTS['small'],
+                                   bg=self.COLORS['danger'], fg='#FFFFFF',
+                                   relief=tk.FLAT, padx=10, pady=4, cursor='hand2',
+                                   command=make_delete_func(csv_idx, entry))
+                del_btn.pack(side=tk.RIGHT, padx=(4, 0))
+
+                edit_btn = tk.Button(right, text='✏️ Edit', font=self.FONTS['small'],
+                                    bg=self.COLORS['warning'], fg='#FFFFFF',
+                                    relief=tk.FLAT, padx=10, pady=4, cursor='hand2',
+                                    command=make_edit_func(csv_idx, entry))
+                edit_btn.pack(side=tk.RIGHT, padx=(0, 4))
+        else:
+            tk.Label(content, text='No entries for this month yet',
+                     font=self.FONTS['body'],
+                     bg=self.COLORS['bg'], fg=self.COLORS['text_muted']).pack(anchor=tk.W, pady=8)
+
+        # Button area
+        btn_frame = tk.Frame(content, bg=self.COLORS['bg'])
+        btn_frame.pack(fill=tk.X, pady=(12, 0))
+
+        self._mk_btn(btn_frame, '+ Add Entry', self.COLORS['primary'], 
+                     lambda: self.open_add_entry_window(int(year), int(month)), 
+                     side=tk.LEFT, padx=(0, 8))
+        self._mk_btn(btn_frame, 'Close', self.COLORS['text_light'], 
+                     win.destroy, side=tk.LEFT)
 
     # ──────────────────────────────────────────────
     #  LÄGG TILL INMATNINGSFÖNSTER
     # ──────────────────────────────────────────────
 
-    def open_add_entry_window(self):
+    def open_add_entry_window(self, year=None, month=None):
         win = tk.Toplevel(self.root)
         win.title('Add Entry')
         win.geometry('480x460')
@@ -664,8 +1111,12 @@ class BudgetUI:
         content = tk.Frame(win, bg=self.COLORS['bg'])
         content.pack(fill=tk.BOTH, expand=True, padx=28, pady=24)
 
-        year_var    = self._form_field(content, 'Year',   str(datetime.now().year))
-        month_var   = self._form_field(content, 'Month',  str(datetime.now().month))
+        # Pre-fill year/month if provided
+        default_year = str(year) if year else str(datetime.now().year)
+        default_month = str(month) if month else str(datetime.now().month)
+        
+        year_var    = self._form_field(content, 'Year',   default_year)
+        month_var   = self._form_field(content, 'Month',  default_month)
         type_var    = self._form_field(content, 'Type',   combo=True)
         desc_var    = self._form_field(content, 'Description')
         amount_var  = self._form_field(content, 'Amount (kr)')
@@ -698,30 +1149,32 @@ class BudgetUI:
     # ──────────────────────────────────────────────
 
     def _modal_header(self, win, text, color):
-        hdr = tk.Frame(win, bg=color, height=64)
+        hdr = tk.Frame(win, bg=color, height=72)
         hdr.pack(fill=tk.X)
         hdr.pack_propagate(False)
         tk.Label(hdr, text=text, font=self.FONTS['heading'],
-                 bg=color, fg='#FFFFFF').pack(side=tk.LEFT, padx=26, pady=18)
+                 bg=color, fg='#FFFFFF').pack(side=tk.LEFT, padx=28, pady=22)
 
-    def _form_section_label(self, parent, text):
-        tk.Frame(parent, bg=self.COLORS['border'], height=1).pack(fill=tk.X, pady=(16, 12))
+    def _form_section_label(self, parent, text, top_pad=16):
+        tk.Frame(parent, bg=self.COLORS['border'], height=1).pack(fill=tk.X, pady=(top_pad, 14))
         tk.Label(parent, text=text, font=self.FONTS['subheading'],
-                 bg=self.COLORS['bg'], fg=self.COLORS['text']).pack(anchor=tk.W, pady=(0, 8))
+                 bg=self.COLORS['bg'], fg=self.COLORS['primary']).pack(anchor=tk.W, pady=(0, 12))
 
     def _form_field(self, parent, label, default='', combo=False):
         row = tk.Frame(parent, bg=self.COLORS['bg'])
-        row.pack(fill=tk.X, pady=6)
+        row.pack(fill=tk.X, pady=12)
 
-        tk.Label(row, text=label, font=self.FONTS['small'],
-                 bg=self.COLORS['bg'], fg=self.COLORS['text_muted'],
-                 width=14, anchor=tk.W).pack(side=tk.LEFT, padx=(0, 12))
+        # Label with better styling
+        tk.Label(row, text=label, font=self.FONTS['small_bold'],
+                 bg=self.COLORS['bg'], fg=self.COLORS['text'],
+                 width=18, anchor=tk.W).pack(side=tk.LEFT, padx=(0, 16), pady=(2, 0))
 
         var = tk.StringVar(value=default)
         if combo:
             widget = ttk.Combobox(row, textvariable=var,
                                   values=['wage', 'cost', 'debt'],
                                   state='readonly', font=self.FONTS['body'])
+            widget.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8)
         else:
             widget = tk.Entry(row, textvariable=var, font=self.FONTS['body'],
                               bg=self.COLORS['surface'], fg=self.COLORS['text'],
@@ -731,7 +1184,7 @@ class BudgetUI:
                               insertbackground=self.COLORS['primary'])
 
             def _focus_in(e):
-                widget.config(highlightbackground=self.COLORS['border_focus'],
+                widget.config(highlightbackground=self.COLORS['primary'],
                               highlightthickness=2)
             def _focus_out(e):
                 widget.config(highlightbackground=self.COLORS['border'],
@@ -739,26 +1192,27 @@ class BudgetUI:
             widget.bind('<FocusIn>',  _focus_in)
             widget.bind('<FocusOut>', _focus_out)
 
-        widget.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=5)
+            widget.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=9)
+        
         return var
 
     def _form_listbox(self, parent):
-        lb = tk.Listbox(parent, height=4, font=self.FONTS['body'],
+        lb = tk.Listbox(parent, height=5, font=self.FONTS['body'],
                         bg=self.COLORS['surface'], fg=self.COLORS['text'],
-                        selectbackground='#EFF6FF',
+                        selectbackground=self.COLORS['primary_light'],
                         selectforeground=self.COLORS['primary'],
                         relief=tk.FLAT, bd=0,
                         highlightbackground=self.COLORS['border'],
                         highlightthickness=1,
                         activestyle='none')
-        lb.pack(fill=tk.X, pady=(0, 6))
+        lb.pack(fill=tk.X, pady=(0, 8))
         return lb
 
     def _form_list_buttons(self, parent, add_cmd, remove_cmd, add_color):
         row = tk.Frame(parent, bg=self.COLORS['bg'])
-        row.pack(fill=tk.X, pady=(0, 4))
+        row.pack(fill=tk.X, pady=(6, 12))
         self._mk_btn(row, '+ Add', add_color, add_cmd, side=tk.LEFT, padx=(0, 8))
-        self._mk_btn(row, '✕ Remove selected', '#94A3B8', remove_cmd, side=tk.LEFT)
+        self._mk_btn(row, '− Remove', self.COLORS['text_light'], remove_cmd, side=tk.LEFT)
 
     # ──────────────────────────────────────────────
     #  ARVET SHIM (behålls så ingenting bryter utanför)

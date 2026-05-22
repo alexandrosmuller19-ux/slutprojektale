@@ -28,6 +28,62 @@ class BudgetManager:
         except Exception as e:
             print(f"Error adding entry: {e}")
     
+    def get_all_raw_entries(self):
+        """Get all entries as raw list of dicts (for editing/deleting)"""
+        entries = []
+        try:
+            with open(self.csv_file, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    entries.append(dict(row))
+        except FileNotFoundError:
+            pass
+        return entries
+    
+    def delete_entry(self, row_index):
+        """Delete an entry by row index (0-based, excluding header)"""
+        try:
+            entries = self.get_all_raw_entries()
+            if 0 <= row_index < len(entries):
+                entries.pop(row_index)
+                # Rewrite entire CSV
+                with open(self.csv_file, 'w', newline='') as csvfile:
+                    writer = csv.writer(csvfile)
+                    writer.writerow(['Year', 'Month', 'Type', 'Description', 'Amount'])
+                    for entry in entries:
+                        writer.writerow([entry['Year'], entry['Month'], entry['Type'], 
+                                       entry['Description'], entry['Amount']])
+                print(f"Deleted entry at row {row_index}")
+                return True
+        except Exception as e:
+            print(f"Error deleting entry: {e}")
+        return False
+    
+    def update_entry(self, row_index, year, month, entry_type, description, amount):
+        """Update an entry by row index"""
+        try:
+            entries = self.get_all_raw_entries()
+            if 0 <= row_index < len(entries):
+                entries[row_index] = {
+                    'Year': year,
+                    'Month': month,
+                    'Type': entry_type,
+                    'Description': description,
+                    'Amount': amount
+                }
+                # Rewrite entire CSV
+                with open(self.csv_file, 'w', newline='') as csvfile:
+                    writer = csv.writer(csvfile)
+                    writer.writerow(['Year', 'Month', 'Type', 'Description', 'Amount'])
+                    for entry in entries:
+                        writer.writerow([entry['Year'], entry['Month'], entry['Type'], 
+                                       entry['Description'], entry['Amount']])
+                print(f"Updated entry at row {row_index}")
+                return True
+        except Exception as e:
+            print(f"Error updating entry: {e}")
+        return False
+    
     def load_all_entries(self):
         # Ladda alla poster från CSV-fil.
         entries = defaultdict(lambda: {'wage': 0, 'costs': [], 'debts': []})

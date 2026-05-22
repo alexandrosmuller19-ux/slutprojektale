@@ -5,3 +5,5 @@ Year,Month,Type,Description,Amount
 2026,5,cost,hyra,12000.0
 2026,5,debt,bil,4000.0
 2026,5,cost,food,1000.0
+2026,5,cost,food,1000.0
+2026,4,cost,food,1000.0
