@@ -4,14 +4,15 @@ from collections import defaultdict
 
 
 class BudgetManager:
-    # Hanterar budgetposter och beräkningar med hjälp av CSV-fil.
+    # Hanterar budgetposter och beräkningar med en CSV-fil för beständig lagring
     
     def __init__(self, csv_file="budget.csv"):
+        # Initierar budgethanteraren med en sökväg till CSV-filen
         self.csv_file = csv_file
         self.initialize_csv()
     
     def initialize_csv(self):
-        # Initialisera CSV-fil om den inte finns.
+        # Skapar CSV-fil med rubriker om den inte redan finns
         if not os.path.exists(self.csv_file):
             with open(self.csv_file, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
@@ -19,7 +20,7 @@ class BudgetManager:
             print(f"Created new budget file: {self.csv_file}")
     
     def add_entry(self, year, month, entry_type, description, amount):
-        # Lägg till en enskild budgetpost till CSV.
+        # Lägger till en enskild budgetpost i CSV-filen
         try:
             with open(self.csv_file, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
@@ -29,7 +30,7 @@ class BudgetManager:
             print(f"Error adding entry: {e}")
     
     def get_all_raw_entries(self):
-        """Get all entries as raw list of dicts (for editing/deleting)"""
+        # Hämtar alla poster som en rå lista av dicts för redigering och borttagning
         entries = []
         try:
             with open(self.csv_file, 'r', encoding='utf-8') as csvfile:
@@ -41,12 +42,13 @@ class BudgetManager:
         return entries
     
     def delete_entry(self, row_index):
-        """Delete an entry by row index (0-based, excluding header)"""
+        # Tar bort en post via radindex (0-baserat, exklusive rubrikrad)
         try:
             entries = self.get_all_raw_entries()
             if 0 <= row_index < len(entries):
+                # Ta bort den angivna posten
                 entries.pop(row_index)
-                # Rewrite entire CSV
+                # Skriv om hela CSV-filen med kvarvarande poster
                 with open(self.csv_file, 'w', newline='') as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerow(['Year', 'Month', 'Type', 'Description', 'Amount'])
@@ -60,10 +62,11 @@ class BudgetManager:
         return False
     
     def update_entry(self, row_index, year, month, entry_type, description, amount):
-        """Update an entry by row index"""
+        # Uppdaterar en post via radindex med nya värden
         try:
             entries = self.get_all_raw_entries()
             if 0 <= row_index < len(entries):
+                # Ersätt posten med uppdaterade värden
                 entries[row_index] = {
                     'Year': year,
                     'Month': month,
@@ -71,7 +74,7 @@ class BudgetManager:
                     'Description': description,
                     'Amount': amount
                 }
-                # Rewrite entire CSV
+                # Skriv om hela CSV-filen med uppdaterade poster
                 with open(self.csv_file, 'w', newline='') as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerow(['Year', 'Month', 'Type', 'Description', 'Amount'])
@@ -85,18 +88,19 @@ class BudgetManager:
         return False
     
     def load_all_entries(self):
-        # Ladda alla poster från CSV-fil.
+        # Läser in alla budgetposter från CSV-filen och organiserar dem per månad
         entries = defaultdict(lambda: {'wage': 0, 'costs': [], 'debts': []})
         try:
             with open(self.csv_file, 'r', encoding='utf-8') as csvfile:
                 reader = csv.reader(csvfile)
-                next(reader)  # hoppa över rubrik
+                next(reader)  # Hoppa över rubrikraden
                 for row in reader:
                     if len(row) >= 5:
                         year, month, entry_type, description, amount = row[0], row[1], row[2], row[3], row[4]
                         try:
                             amount = float(amount)
                             key = f"{year}-{month}"
+                            # Kategoriserar poster efter typ: inkomst, utgifter eller skulder
                             if entry_type.lower() == 'wage':
                                 entries[key]['wage'] += amount
                             elif entry_type.lower() == 'cost':
@@ -111,16 +115,16 @@ class BudgetManager:
     
     @staticmethod
     def calculate_total_costs(costs_list):
-        # Beräkna totala kostnader från en lista med kosttupler.
+        # Summerar alla utgifter från en lista av (beskrivning, belopp)-tupler
         return sum(amount for _, amount in costs_list)
     
     @staticmethod
     def calculate_total_debts(debts_list):
-        # Beräkna totala skulder från en lista med skuldtupler.
+        # Summerar alla skulder från en lista av (beskrivning, belopp)-tupler
         return sum(amount for _, amount in debts_list)
     
     def display_monthly_budget(self, year, month, entries):
-        # Visa budget för en specifik månad.
+        # Visar budgetsammanfattning för en specifik månad med inkomst, utgifter och skulder
         key = f"{year}-{month}"
         if key not in entries:
             print(f"No budget data for {year}-{month:02d}")
@@ -131,8 +135,10 @@ class BudgetManager:
         costs = data['costs']
         debts = data['debts']
         
+        # Beräknar totalsummor för varje kategori
         total_costs = self.calculate_total_costs(costs)
         total_debts = self.calculate_total_debts(debts)
+        # Beräknar kvarvarande pengar efter utgifter och skulder
         disposable = wage - total_costs - total_debts
         
         print(f"\n{'='*50}")
@@ -154,9 +160,10 @@ class BudgetManager:
         print(f"{'='*50}")
     
     def display_yearly_budget(self, year, entries):
-        # Visa budget för ett specifikt år.
+        # Visar årlig budgetsammanfattning för alla månader under ett givet år
         yearly_data = {'wage': 0, 'costs': 0, 'debts': 0, 'months': []}
         
+        # Sammanställer all månadsdata för det angivna året
         for key in sorted(entries.keys()):
             if key.startswith(str(year)):
                 data = entries[key]
@@ -169,6 +176,7 @@ class BudgetManager:
             print(f"No budget data for year {year}")
             return
         
+        # Beräknar total disponibel inkomst för hela året
         disposable = yearly_data['wage'] - yearly_data['costs'] - yearly_data['debts']
         
         print(f"\n{'='*50}")
@@ -182,20 +190,21 @@ class BudgetManager:
         print(f"{'='*50}")
     
     def create_new_budget(self):
-        # Skapa en ny månadsbudget med lön, kostnader och skulder.
+        # Skapar en ny månadsbudget med inkomst, utgifter och skulder
         print("\n" + "="*50)
         print("CREATE NEW MONTHLY BUDGET")
         print("="*50)
         
+        # Hämtar år och månad från användarinmatning
         year = int(input("Enter year (e.g., 2026): "))
         month = int(input("Enter month (1-12): "))
         
-        # lägg till lön
+        # Lägger till en inkomstpost för budgeten
         wage_description = input("Wage description (e.g., Salary): ")
         wage_amount = float(input("Wage amount: "))
         self.add_entry(year, month, "wage", wage_description, wage_amount)
         
-        # lägg till kostnader
+        # Lägger till utgifter – användaren kan lägga till flera poster
         while True:
             add_more_costs = input("\nAdd a cost? (y/n): ").lower()
             if add_more_costs != 'y':
@@ -204,7 +213,7 @@ class BudgetManager:
             cost_amount = float(input("Cost amount: "))
             self.add_entry(year, month, "cost", cost_description, cost_amount)
         
-        # lägg till skulder
+        # Lägger till skulder – användaren kan lägga till flera poster
         while True:
             add_more_debts = input("\nAdd a debt? (y/n): ").lower()
             if add_more_debts != 'y':
@@ -213,4 +222,5 @@ class BudgetManager:
             debt_amount = float(input("Debt amount: "))
             self.add_entry(year, month, "debt", debt_description, debt_amount)
         
+        # Bekräftar att budgeten har skapats
         print(f"\nBudget for {year}-{month:02d} created successfully!")
